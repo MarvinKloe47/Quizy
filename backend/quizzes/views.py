@@ -48,15 +48,21 @@ class QuizViewSet(viewsets.ModelViewSet):
     def progress_response(self, request, quiz):
         """Return saved progress or an empty state."""
         progress = quiz.progress.filter(user=request.user).first()
-        serializer = QuizProgressSerializer(progress or empty_progress())
+        serializer = QuizProgressSerializer(
+            progress or empty_progress(),
+            context={"quiz": quiz},
+        )
         return Response(serializer.data, status=200)
 
     def save_progress_response(self, request, quiz):
         """Validate and persist quiz progress."""
-        serializer = QuizProgressSerializer(data=request.data)
+        serializer = QuizProgressSerializer(
+            data=request.data,
+            context={"quiz": quiz},
+        )
         serializer.is_valid(raise_exception=True)
         progress = save_progress(request.user, quiz, serializer.validated_data)
-        return Response(QuizProgressSerializer(progress).data, status=200)
+        return Response(progress_payload(progress, quiz), status=200)
 
 
 def empty_progress():
@@ -64,3 +70,8 @@ def empty_progress():
     from quizzes.models import QuizProgress
 
     return QuizProgress(answers={}, current_question=0)
+
+
+def progress_payload(progress, quiz):
+    """Serialize progress with quiz context."""
+    return QuizProgressSerializer(progress, context={"quiz": quiz}).data
