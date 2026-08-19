@@ -28,7 +28,7 @@
 
 ## Auth-Flow
 
-Login erzeugt SimpleJWT Access- und Refresh-Tokens und setzt sie als HTTP-only Cookies. Geschützte DRF-Views lesen den Access-Token aus dem Cookie. Refresh liest den Refresh-Cookie und setzt einen neuen Access-Cookie. Logout blacklisted den Refresh-Token und löscht beide Cookies.
+Login erzeugt SimpleJWT Access- und Refresh-Tokens und setzt sie als HTTP-only Cookies. Beide Tokens tragen eine serverseitig verwaltete Token-Version. Geschützte DRF-Views lesen den Access-Token aus dem Cookie und lehnen Tokens mit veralteter Version ab. Refresh liest den Refresh-Cookie, prüft die Version und setzt einen neuen Access-Cookie. Logout blacklisted den Refresh-Token, erhöht die Token-Version und löscht beide Cookies. Dadurch sind auch bereits ausgestellte Access-Tokens nach Logout unbrauchbar.
 
 ## AI-Pipeline
 
@@ -36,7 +36,16 @@ Login erzeugt SimpleJWT Access- und Refresh-Tokens und setzt sie als HTTP-only C
 
 ## Tests
 
-Automatisierte Tests decken Registrierung, Login, Cookies, Refresh, Logout, geschützte Endpunkte, Ownership, PATCH, DELETE, YouTube-Validierung, gemockte Quizgenerierung und Fehlerfälle für Download, Whisper und Gemini ab.
+Automatisierte Tests decken Registrierung, Login, Cookies, Refresh, Logout, geschützte Endpunkte, Ownership, PATCH, DELETE, Progress-Validierung, YouTube-Validierung, gemockte Quizgenerierung und Fehlerfälle für Download, Whisper und Gemini ab. Der zweite Hardening-Pass erweiterte die Suite von 22 auf 39 Tests.
+
+## Hardening Review
+
+- Access-Tokens werden nach Logout über serverseitige Token-Versionierung sofort ungültig.
+- Login-Fehler liefern jetzt den dokumentierten Status `401` mit allgemeiner Fehlermeldung.
+- Manipulierte, fehlende und abgelaufene Access-/Refresh-Cookies sind durch Regressionstests abgedeckt.
+- Progress-Daten werden gegen eigene Quizfragen, gültige Question-IDs, Antwortoptionen und aktuelle Frage validiert.
+- YouTube-URL-Prüfung verwendet Hostname-basiertes URL-Parsing gegen Spoofing-Domains, lokale URLs und `file://`.
+- Gemini-Ausgaben werden auf exakt erwartete Felder, nicht-leere Texte, exakt 10 Fragen, exakt 4 eindeutige Optionen und gültige Antworten geprüft.
 
 ## Frontend
 
