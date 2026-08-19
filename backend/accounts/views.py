@@ -9,6 +9,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.cookies import clear_token_cookies, set_access_cookie
 from accounts.cookies import set_token_cookies
 from accounts.serializers import LoginSerializer, RegisterSerializer
+from accounts.tokens import issue_tokens, refresh_from_cookie
+from accounts.tokens import revoke_user_tokens, token_matches_user
 
 
 class RegisterView(APIView):
@@ -32,10 +34,11 @@ class LoginView(APIView):
     def post(self, request):
         """Log in a user and set access and refresh cookies."""
         serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(success("Invalid credentials."), status=401)
         user = serializer.validated_data["user"]
         response = Response(login_payload(user), status=status.HTTP_200_OK)
-        set_token_cookies(response, token_access(user), token_refresh(user))
+        set_token_cookies(response, *issue_tokens(user))
         return response
 
 
@@ -46,8 +49,8 @@ class TokenRefreshView(APIView):
 
     def post(self, request):
         """Set a new access cookie from a valid refresh token."""
-        refresh = get_refresh_or_none(request)
-        if refresh is None:
+        refresh = refresh_from_cookie(request)
+        if not refresh_is_current(refresh):
             return Response(success("Refresh token invalid."), status=401)
         response = Response(success("Token refreshed"), status=200)
         set_access_cookie(response, refresh.access_token)
@@ -60,6 +63,7 @@ class LogoutView(APIView):
     def post(self, request):
         """Log out an authenticated user."""
         blacklist_refresh(request.COOKIES.get("refresh_token"))
+        revoke_user_tokens(request.user)
         response = Response(success(logout_detail()), status=200)
         clear_token_cookies(response)
         return response
@@ -80,31 +84,29 @@ def user_payload(user):
     return {"id": user.id, "username": user.username, "email": user.email}
 
 
-def token_refresh(user):
-    """Create a refresh token for the user."""
-    return RefreshToken.for_user(user)
-
-
-def token_access(user):
-    """Create an access token for the user."""
-    return token_refresh(user).access_token
-
-
 def blacklist_refresh(raw_token):
     """Blacklist a refresh token when present and valid."""
     try:
         if raw_token:
             RefreshToken(raw_token).blacklist()
     except TokenError:
-        pass
+        return
 
 
-def get_refresh_or_none(request):
-    """Return a refresh token object or None."""
-    try:
-        return RefreshToken(request.COOKIES.get("refresh_token", ""))
-    except TokenError:
-        return None
+def refresh_is_current(refresh):
+    """Return whether the refresh token is valid for its user."""
+    if refresh is None:
+        return False
+    user = refresh_user(refresh)
+    return user is not None and token_matches_user(user, refresh)
+
+
+def refresh_user(refresh):
+    """Return the authenticated refresh-token user."""
+    from django.contrib.auth import get_user_model
+
+    user_id = refresh.get("user_id")
+    return get_user_model().objects.filter(id=user_id).first()
 
 
 def logout_detail():

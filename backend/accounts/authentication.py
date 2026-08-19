@@ -1,6 +1,9 @@
 """Cookie based JWT authentication for DRF."""
 
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from accounts.tokens import token_matches_user
 
 
 class CookieJWTAuthentication(JWTAuthentication):
@@ -12,4 +15,12 @@ class CookieJWTAuthentication(JWTAuthentication):
         if raw_token is None:
             return None
         validated_token = self.get_validated_token(raw_token)
-        return self.get_user(validated_token), validated_token
+        user = self.get_user(validated_token)
+        validate_token_version(user, validated_token)
+        return user, validated_token
+
+
+def validate_token_version(user, token):
+    """Reject access tokens revoked by logout."""
+    if not token_matches_user(user, token):
+        raise AuthenticationFailed("Token has been revoked.")
