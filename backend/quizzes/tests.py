@@ -44,6 +44,14 @@ class QuizApiTests(TestCase):
         response = self.client.get(f"/api/quizzes/{quiz.id}/")
         self.assertEqual(response.status_code, 404)
 
+    def test_foreign_quiz_write_and_delete_are_blocked(self):
+        """Users cannot update or delete quizzes they do not own."""
+        quiz = create_quiz(self.other, "Other")
+        patch = self.client.patch(patch_url(quiz), patch_payload(), format="json")
+        delete = self.client.delete(patch_url(quiz))
+        self.assertEqual(patch.status_code, 404)
+        self.assertEqual(delete.status_code, 404)
+
     def test_patch_own_quiz(self):
         """Users can update their own quiz title and description."""
         quiz = create_quiz(self.user, "Old")
@@ -73,6 +81,58 @@ class QuizApiTests(TestCase):
         response = self.client.post("/api/quizzes/", url_payload(), format="json")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Quiz.objects.count(), 0)
+
+    def test_progress_saves_valid_answers(self):
+        """Users can save valid progress for their own quiz."""
+        quiz = create_quiz(self.user, "Progress")
+        question = quiz.questions.first()
+        response = self.client.patch(
+            progress_url(quiz),
+            progress_payload(question),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["answers"][str(question.id)], "A")
+
+    def test_progress_rejects_foreign_quiz(self):
+        """Users cannot read or modify another user's progress."""
+        quiz = create_quiz(self.other, "Foreign")
+        response = self.client.patch(
+            progress_url(quiz),
+            {"answers": {}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_progress_rejects_unknown_question_id(self):
+        """Progress rejects answers for questions outside the quiz."""
+        quiz = create_quiz(self.user, "Progress")
+        response = self.client.patch(
+            progress_url(quiz),
+            invalid_question_payload(),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_progress_rejects_invalid_answer_option(self):
+        """Progress rejects answers not present in the question options."""
+        quiz = create_quiz(self.user, "Progress")
+        question = quiz.questions.first()
+        response = self.client.patch(
+            progress_url(quiz),
+            progress_payload(question, "Z"),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_progress_rejects_current_question_out_of_range(self):
+        """Progress rejects impossible current question indexes."""
+        quiz = create_quiz(self.user, "Progress")
+        question = quiz.questions.first()
+        payload = progress_payload(question)
+        payload["current_question"] = 99
+        response = self.client.patch(progress_url(quiz), payload, format="json")
+        self.assertEqual(response.status_code, 400)
 
     @patch("quizzes.services.gemini_service.generate_quiz")
     @patch("quizzes.services.whisper_service.transcribe_audio")
@@ -129,11 +189,20 @@ class QuizValidationTests(TestCase):
         with self.assertRaises(QuizGenerationError):
             validate_youtube_url("https://example.com/watch?v=abc")
 
+    def test_youtube_url_validation_rejects_manipulated_urls(self):
+        """Validator rejects spoofed, local and file URLs."""
+        for url in invalid_urls():
+            with self.assertRaises(QuizGenerationError):
+                validate_youtube_url(url)
+
     def test_payload_requires_ten_questions(self):
         """Generated quiz validation requires exactly ten questions."""
         payload = valid_payload()
         self.assertEqual(len(validate_quiz_payload(payload)["questions"]), 10)
         payload["questions"].pop()
+        with self.assertRaises(QuizGenerationError):
+            validate_quiz_payload(payload)
+        payload["questions"].extend([question_payload(), question_payload()])
         with self.assertRaises(QuizGenerationError):
             validate_quiz_payload(payload)
 
@@ -143,6 +212,19 @@ class QuizValidationTests(TestCase):
         payload["questions"][0]["question_options"] = ["A", "B", "C"]
         with self.assertRaises(QuizGenerationError):
             validate_quiz_payload(payload)
+
+    def test_payload_rejects_empty_and_unexpected_fields(self):
+        """Generated quiz validation rejects empty text and extra data."""
+        assert_invalid_payload({"title": ""})
+        assert_invalid_payload({"extra": "nope"})
+        assert_invalid_question({"question_title": ""})
+        assert_invalid_question({"extra": "nope"})
+
+    def test_payload_rejects_duplicate_or_bad_answers(self):
+        """Generated quiz validation rejects duplicate options and bad answers."""
+        assert_invalid_question({"question_options": ["A", "A", "C", "D"]})
+        assert_invalid_question({"answer": ""})
+        assert_invalid_question({"answer": "Z"})
 
 
 def create_user(username):
@@ -180,9 +262,24 @@ def patch_url(quiz):
     return f"/api/quizzes/{quiz.id}/"
 
 
+def progress_url(quiz):
+    """Return the progress URL for a quiz."""
+    return f"/api/quizzes/{quiz.id}/progress/"
+
+
 def patch_payload():
     """Return an update payload."""
     return {"title": "New", "description": "Changed"}
+
+
+def progress_payload(question, answer="A"):
+    """Return valid progress data."""
+    return {"answers": {str(question.id): answer}, "current_question": 0}
+
+
+def invalid_question_payload():
+    """Return progress with a non-existing question id."""
+    return {"answers": {"999999": "A"}, "current_question": 0}
 
 
 def url_payload():
@@ -198,3 +295,38 @@ def long_url():
 def short_url():
     """Return a short YouTube URL."""
     return "https://youtu.be/abc123xyz"
+
+
+def invalid_urls():
+    """Return URLs that must never be accepted as YouTube videos."""
+    return [
+        "",
+        "not a url",
+        "file:///tmp/video.mp4",
+        "http://localhost/watch?v=abc",
+        "https://youtube.com.example.com/watch?v=abc",
+        "https://example.com/?next=youtube.com/watch?v=abc",
+    ]
+
+
+def assert_invalid_payload(overrides):
+    """Assert a top-level generated quiz override is invalid."""
+    payload = valid_payload()
+    payload.update(overrides)
+    assert_raises_generation_error(payload)
+
+
+def assert_invalid_question(overrides):
+    """Assert a generated question override is invalid."""
+    payload = valid_payload()
+    payload["questions"][0].update(overrides)
+    assert_raises_generation_error(payload)
+
+
+def assert_raises_generation_error(payload):
+    """Assert a generated quiz payload is rejected."""
+    try:
+        validate_quiz_payload(payload)
+    except QuizGenerationError:
+        return
+    raise AssertionError("Payload should have been rejected.")
