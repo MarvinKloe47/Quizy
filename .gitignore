@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.sqlite3
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local Codex instructions / scratch files
+CODEX.md
+codex-notes/
+*.codex.md
+
+# Runtime / generated media
+backend/media/
+backend/tmp/
+backend/temp/
+*.mp3
+*.wav
+*.m4a
+*.webm
