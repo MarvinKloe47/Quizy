@@ -8,6 +8,7 @@ venv/
 # Local environment and databases
 .env
 *.sqlite3
+CODEX.md
 
 # IDE / OS
 .vscode/
@@ -19,9 +20,6 @@ Thumbs.db
 media/
 tmp/
 temp/
-backend/media/
-backend/tmp/
-backend/temp/
 *.mp3
 *.wav
 *.m4a

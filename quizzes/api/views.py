@@ -6,8 +6,8 @@ from rest_framework.response import Response
 
 from quizzes.exceptions import QuizGenerationError
 from quizzes.models import Quiz
-from quizzes.serializers import QuizCreateSerializer, QuizProgressSerializer
-from quizzes.serializers import QuizSerializer
+from quizzes.api.serializers import QuizCreateSerializer, QuizProgressSerializer
+from quizzes.api.serializers import QuizSerializer
 from quizzes.services import generate_quiz_for_user, save_progress
 
 

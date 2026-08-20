@@ -67,7 +67,7 @@ class QuizApiTests(TestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(Quiz.objects.filter(id=quiz.id).exists())
 
-    @patch("quizzes.views.generate_quiz_for_user")
+    @patch("quizzes.api.views.generate_quiz_for_user")
     def test_quiz_generation_with_mocked_services(self, generator):
         """POST quizzes returns a generated quiz without real AI calls."""
         generator.return_value = create_quiz(self.user, "Generated")
@@ -75,7 +75,7 @@ class QuizApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["title"], "Generated")
 
-    @patch("quizzes.views.generate_quiz_for_user")
+    @patch("quizzes.api.views.generate_quiz_for_user")
     def test_generation_error_leaves_no_half_quiz(self, generator):
         """Generation errors do not persist partial quizzes."""
         generator.side_effect = QuizGenerationError("Boom")

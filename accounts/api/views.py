@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.cookies import clear_token_cookies, set_access_cookie
 from accounts.cookies import set_token_cookies
-from accounts.serializers import LoginSerializer, RegisterSerializer
+from accounts.api.serializers import LoginSerializer, RegisterSerializer
 from accounts.tokens import issue_tokens, refresh_from_cookie
 from accounts.tokens import revoke_user_tokens, token_matches_user
 
