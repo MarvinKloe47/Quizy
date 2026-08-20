@@ -1,8 +1,11 @@
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
 .venv/
 venv/
+
+# Local environment and databases
 .env
 *.sqlite3
 
@@ -12,12 +15,15 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Local Codex instructions / scratch files
+# Local scratch files
 CODEX.md
 codex-notes/
 *.codex.md
 
 # Runtime / generated media
+media/
+tmp/
+temp/
 backend/media/
 backend/tmp/
 backend/temp/
