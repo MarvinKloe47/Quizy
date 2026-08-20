@@ -124,5 +124,5 @@ AUTH_COOKIE_SECURE = env_bool("AUTH_COOKIE_SECURE", False)
 AUTH_COOKIE_PATH = os.getenv("AUTH_COOKIE_PATH", "/")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")

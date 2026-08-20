@@ -19,9 +19,18 @@ def request_quiz(transcript):
     ensure_api_key()
     try:
         from google import genai
+        from google.genai import errors
     except ImportError as exc:
         raise QuizGenerationError("google-genai is not installed.") from exc
-    return call_gemini(genai.Client(api_key=settings.GEMINI_API_KEY), transcript)
+    try:
+        return call_gemini(build_client(genai), transcript)
+    except errors.APIError as exc:
+        raise QuizGenerationError("Gemini request failed.") from exc
+
+
+def build_client(genai):
+    """Build a Gemini client with configured credentials."""
+    return genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
 def ensure_api_key():

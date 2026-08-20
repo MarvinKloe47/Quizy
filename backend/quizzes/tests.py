@@ -4,9 +4,10 @@ from unittest.mock import patch
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
+from quizzes import gemini_service
 from quizzes.exceptions import QuizGenerationError
 from quizzes.models import Quiz
 from quizzes.services import generate_quiz_for_user
@@ -225,6 +226,22 @@ class QuizValidationTests(TestCase):
         assert_invalid_question({"question_options": ["A", "A", "C", "D"]})
         assert_invalid_question({"answer": ""})
         assert_invalid_question({"answer": "Z"})
+
+
+class GeminiServiceTests(TestCase):
+    """Cover Gemini integration error handling."""
+
+    @override_settings(GEMINI_API_KEY="configured")
+    @patch("quizzes.gemini_service.build_client")
+    @patch("quizzes.gemini_service.call_gemini")
+    def test_sdk_errors_are_domain_errors(self, call, build_client):
+        """SDK API failures are mapped to generation errors."""
+        from google.genai import errors
+
+        call.side_effect = errors.ClientError(404, {"error": {}}, None)
+        with self.assertRaises(QuizGenerationError):
+            gemini_service.request_quiz("Transcript")
+        build_client.assert_called_once()
 
 
 def create_user(username):
